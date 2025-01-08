@@ -1,19 +1,19 @@
 import { NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase/server'
 
-export async function PATCH(request: Request, context: { params: { id: string } }) {
+export async function PATCH(request: Request, { params }: { params: { id: string } }) {
   try {
     const supabase = await createRouteHandlerClient()
 
     // Get id from params
-    const { id } = context.params
+    const { id } = params
     const updates = await request.json()
-    
+
     const { data, error } = await supabase
       .from('leads')
-      .update({ 
-        ...updates, 
-        updated_at: new Date().toISOString() 
+      .update({
+        ...updates,
+        updated_at: new Date().toISOString()
       })
       .eq('id', id)
       .select()
@@ -27,13 +27,13 @@ export async function PATCH(request: Request, context: { params: { id: string } 
   }
 }
 
-export async function DELETE(request: Request, context: { params: { id: string } }) {
+export async function DELETE(request: Request, { params }: { params: { id: string } }) {
   try {
     const supabase = await createRouteHandlerClient()
 
     // Get id from params
-    const { id } = context.params
-    
+    const { id } = params
+
     const { error } = await supabase
       .from('leads')
       .delete()

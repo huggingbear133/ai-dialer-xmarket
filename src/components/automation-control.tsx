@@ -22,9 +22,7 @@ export function AutomationControl({
   const [enabled, setEnabled] = useState(initialSettings?.automation_enabled ?? false)
   const [isUpdating, setIsUpdating] = useState(false)
   const { toast } = useToast()
-
-  const AI_DIALER_URL = process.env.AI_DIALER_URL
-  const CRON_SECRET = process.env.CRON_SECRET
+  const CRON_SECRET = "72d68d9b"
 
   // Update local state when initialSettings changes
   useEffect(() => {

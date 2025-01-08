@@ -1,6 +1,18 @@
-# AI Dialer ☎️
+# 🤖 AI Dialer ☎️ – Autonomous Voice Agent for Appointment Scheduling 🗓️
+
 > ⚠️ **Proof of Concept**: This is a demonstration project showcasing AI-powered voice technology for automated calling. It is not intended for production use.
+
 A proof-of-concept system that demonstrates autonomous voice agent capabilities for automated outbound calling. Built with VAPI.ai for voice synthesis, this project explores the potential of AI agents in handling automated phone conversations.
+
+## Demo
+
+[![Voice AI dialer agent built with #Windsurf and #Vapi](https://img.youtube.com/vi/Lws32HyvQq4/maxresdefault.jpg)](https://www.youtube.com/watch?v=Lws32HyvQq4)
+
+## Credits
+
+Special thanks to Justin Hughes, founder of Firebringer AI, for providing valuable sales training methodology that has been incorporated into the system's conversational AI prompts.
+
+This project was developed as a submission for the Voice AI Accelerator's boot camp programme. Special thanks to Terrell Gentry and Lenny Cowans for specifying the functional requirements through their challenging project brief.
 
 ## Project Overview
 

@@ -1,67 +1,85 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { Moon, Sun, Monitor, Check } from "lucide-react"
-import { useTheme } from "next-themes"
+import * as React from "react";
+import { Moon, Sun } from "lucide-react";
+import { useTheme } from "next-themes";
+import { Button } from "@/components/ui/button";
 
-import { Button } from "@/components/ui/button"
+export function ThemeToggle() {
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return null;
+  }
+
+  const toggleTheme = () => {
+    setTheme(theme === "light" ? "dark" : "light");
+  };
+
+  return (
+    <Button
+      onClick={toggleTheme}
+      variant={null}
+      size="icon"
+      className="w-full p-4"
+    >
+      <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+      <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+      <span className="sr-only">Toggle theme</span>
+    </Button>
+  );
+}
+
+
+/* Theme Dropdown Toggle 
+
+"use client";
+
+import * as React from "react";
+import { Moon, Sun } from "lucide-react";
+import { useTheme } from "next-themes";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from "@/components/ui/dropdown-menu";
 
-interface ThemeToggleProps {
-  className?: string
-  collapsed?: boolean
-}
-
-export function ThemeToggle({ className, collapsed = false }: ThemeToggleProps) {
-  const { theme, setTheme } = useTheme()
-  const [mounted, setMounted] = React.useState(false)
+export function ThemeToggle() {
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = React.useState(false);
 
   React.useEffect(() => {
-    setMounted(true)
-  }, [])
+    setMounted(true);
+  }, []);
 
   if (!mounted) {
-    return null
+    return null;
   }
-
-  const Icon = theme === 'dark' ? Moon : theme === 'system' ? Monitor : Sun
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        {collapsed ? (
-          <Button variant="ghost" size="sm" className="w-full flex justify-center">
-            <Icon className="h-4 w-4" />
-          </Button>
-        ) : (
-          <Button variant="ghost" size="sm" className={className}>
-            <Icon className="h-[1.2rem] w-[1.2rem]" />
-            <span className="ml-2">Theme</span>
-          </Button>
-        )}
+        <Button variant="outline" size="icon" className="rounded-full">
+          <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+          <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+          <span className="sr-only">Toggle theme</span>
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem onClick={() => setTheme("light")}>
-          <Sun className="mr-2 h-4 w-4" />
-          <span>Light</span>
-          {theme === 'light' && <Check className="ml-2 h-4 w-4" />}
+          Light
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setTheme("dark")}>
-          <Moon className="mr-2 h-4 w-4" />
-          <span>Dark</span>
-          {theme === 'dark' && <Check className="ml-2 h-4 w-4" />}
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme("system")}>
-          <Monitor className="mr-2 h-4 w-4" />
-          <span>System</span>
-          {theme === 'system' && <Check className="ml-2 h-4 w-4" />}
+          Dark
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
-  )
-}
+  );
+} */

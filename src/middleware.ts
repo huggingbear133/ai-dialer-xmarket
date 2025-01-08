@@ -1,39 +1,39 @@
-import { createServerClient } from '@supabase/ssr'
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
+import { createServerClient } from '@supabase/ssr';
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 
 // Ensure environment variables are typed and validated
 const requiredEnvs = [
   'NEXT_PUBLIC_SUPABASE_URL',
   'NEXT_PUBLIC_SUPABASE_ANON_KEY',
-  'NODE_ENV'
-] as const
-requiredEnvs.forEach(env => {
-  if (!process.env[env]) throw new Error(`Missing required environment variable: ${env}`)
-})
+  'NODE_ENV',
+] as const;
+requiredEnvs.forEach((env) => {
+  if (!process.env[env]) throw new Error(`Missing required environment variable: ${env}`);
+});
 
 // Define public routes as a constant set for O(1) lookup
 const PUBLIC_ROUTES = new Set([
-  '/api/cron',
-  '/api/integrations/vapi',
-  '/login'
-])
+  '/login',
+  '/register', // Ensure the /register route is public
+  '/'
+]);
 
 export async function middleware(req: NextRequest) {
   // Early return for static assets and public files
   if (req.nextUrl.pathname.match(/\.(ico|png|jpg|jpeg|svg|css|js)$/)) {
-    return NextResponse.next()
+    return NextResponse.next();
   }
 
-  const res = NextResponse.next()
-  
+  const res = NextResponse.next();
+
   // Create supabase server client with enhanced cookie security
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll: () => req.cookies.getAll().map(cookie => ({
+        getAll: () => req.cookies.getAll().map((cookie) => ({
           name: cookie.name,
           value: cookie.value,
         })),
@@ -44,59 +44,57 @@ export async function middleware(req: NextRequest) {
               value,
               ...options,
               sameSite: 'lax',
-              secure: process.env.NODE_ENV === 'production',
+              secure: process.env.NODE_ENV === 'development',
               httpOnly: true,
               path: '/',
-              maxAge: 7200 // 2 hours
-            })
-          })
+              maxAge: 3600, // 1 hour
+            });
+          });
         }
       }
     }
-  )
+  );
 
   // Check if route is public before proceeding with auth
   if (PUBLIC_ROUTES.has(req.nextUrl.pathname)) {
     // Add security headers even for public routes
-    addSecurityHeaders(res)
-    return res
+    addSecurityHeaders(res);
+    return res;
   }
 
   try {
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
 
-    // Refresh session for authenticated users
-    if (user) {
-      const { error: sessionError } = await supabase.auth.getSession()
-      if (sessionError) throw sessionError
+    // If the user is authenticated and trying to visit the login or register page, redirect them to the home page
+    if (user && (req.nextUrl.pathname === '/login' || req.nextUrl.pathname === '/register')) {
+      return NextResponse.redirect(new URL('/', req.url)); // Redirect to home page
     }
 
-    // Handle API authentication
+    // Handle API authentication (if user is missing)
     if ((!user || userError) && req.nextUrl.pathname.startsWith('/api/')) {
-      return createAuthError(401, 'Unauthorized access')
+      return createAuthError(401, 'Unauthorized access');
     }
 
-    // Redirect unauthenticated users to login
+    // Redirect unauthenticated users to login page
     if (!user || userError) {
-      const redirectUrl = new URL('/login', req.url)
-      redirectUrl.searchParams.set('returnTo', encodeURIComponent(req.nextUrl.pathname))
-      return NextResponse.redirect(redirectUrl)
+      const redirectUrl = new URL('/login', req.url);
+      redirectUrl.searchParams.set('returnTo', encodeURIComponent(req.nextUrl.pathname));
+      return NextResponse.redirect(redirectUrl);
     }
 
     // Add security headers
-    addSecurityHeaders(res)
-
-    return res
+    addSecurityHeaders(res);
+    return res;
   } catch (error) {
-    console.error('Middleware error:', error)
-    
+    console.error('Middleware error:', error);
+
     if (req.nextUrl.pathname.startsWith('/api/')) {
-      return createAuthError(500, 'Internal server error')
+      return createAuthError(500, 'Internal server error');
     }
 
-    const redirectUrl = new URL('/login', req.url)
-    redirectUrl.searchParams.set('error', 'An unexpected error occurred')
-    return NextResponse.redirect(redirectUrl)
+    const redirectUrl = new URL('/register', req.url);
+    redirectUrl.searchParams.set('error', 'An unexpected error occurred');
+    return NextResponse.redirect(redirectUrl);
   }
 }
 
@@ -109,38 +107,31 @@ function addSecurityHeaders(res: NextResponse) {
     'X-XSS-Protection': '1; mode=block',
     'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
     'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co wss://*.supabase.co;",
-    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()'
-  }
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+  };
 
   Object.entries(headers).forEach(([key, value]) => {
-    res.headers.set(key, value)
-  })
+    res.headers.set(key, value);
+  });
 }
 
 // Helper function to create authentication error responses
 function createAuthError(status: number, message: string) {
   return NextResponse.json(
     { error: message },
-    { 
+    {
       status,
       headers: {
         'WWW-Authenticate': 'Bearer',
         'Cache-Control': 'no-store, no-cache, must-revalidate, private',
-        'Pragma': 'no-cache'
-      }
+        'Pragma': 'no-cache',
+      },
     }
-  )
+  );
 }
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder
-     */
     '/((?!_next/static|_next/image|favicon.ico|public/).*)',
   ],
-}
+};

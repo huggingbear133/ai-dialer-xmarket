@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import { Toaster } from "@/components/ui/toaster";
 import { AuthAwareLayout } from "@/components/layouts/auth-aware-layout";
 import { Providers } from './providers'
+import FooterBase from "@/components/base-footer";
 
 const inter = Inter({ subsets: ["latin"] });
 

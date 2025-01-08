@@ -6,6 +6,9 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import SiteHeader from "@/components/site-header";
+import SiteFooter from "@/components/site-footer";
+import Link from "next/link"; // Import Link for navigation
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -49,7 +52,7 @@ export default function LoginPage() {
       }
 
       router.push("/");
-      router.refresh();
+      //router.refresh();
     } catch (error) {
       toast({
         title: "Error",
@@ -62,54 +65,67 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center">
-      <div className="w-full max-w-md space-y-8 p-8">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold">Sign in to your account</h1>
-          <p className="mt-2 text-sm text-gray-600">
-            Enter your email and password to access AI Dialer
-          </p>
-        </div>
-        <form className="mt-8 space-y-6" onSubmit={handleLogin}>
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium">
-                Email address
-              </label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="mt-1"
-                placeholder="Enter your email"
-              />
-            </div>
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium">
-                Password
-              </label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="mt-1"
-                placeholder="Enter your password"
-              />
-            </div>
+    <>
+      <SiteHeader />
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="w-full max-w-md space-y-8 p-8">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold">Sign in to your account</h1>
+            <p className="mt-2 text-sm text-gray-600">
+              Enter your email and password to access AI Dialer
+            </p>
           </div>
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={loading}
-          >
-            {loading ? "Signing in..." : "Sign in"}
-          </Button>
-        </form>
+          <form className="mt-8 space-y-6" onSubmit={handleLogin}>
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium">
+                  Email address
+                </label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="mt-1"
+                  placeholder="Enter your email"
+                />
+              </div>
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium">
+                  Password
+                </label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="mt-1"
+                  placeholder="Enter your password"
+                />
+              </div>
+            </div>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={loading}
+            >
+              {loading ? "Signing in..." : "Sign in"}
+            </Button>
+          </form>
+          {/* Link to register page */}
+          <div className="text-center mt-4">
+            <p className="text-sm text-gray-600">
+              Don't have an account?{" "}
+              <Link href="/register" className="font-semibold text-blue-600 hover:text-blue-800">
+                Create an account
+              </Link>
+            </p>
+          </div>
+        </div>
       </div>
-    </div>
+      <SiteFooter />
+    </>
   );
 }

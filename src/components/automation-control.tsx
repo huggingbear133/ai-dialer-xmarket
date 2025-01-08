@@ -58,7 +58,7 @@ export function AutomationControl({
         }
 
         // Trigger CRON call when enabling automation
-        const cronResponse = await fetch(`${AI_DIALER_URL}/api/cron`, {
+        const cronResponse = await fetch(`/api/cron`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${CRON_SECRET}`,

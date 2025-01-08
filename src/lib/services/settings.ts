@@ -1,37 +1,18 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 import { supabase as defaultClient } from '@/lib/supabase/client'
 
-export type AgentSettings = {
+export type AutomationSettings = {
   automation_enabled: boolean
   max_calls_batch: number
   retry_interval: number
   max_attempts: number
-  agent_name?: string
-  gender?: string
-  position?: string
-  first_message?: string
-  last_message?: string
-  languages?: string[]
-  voice?: string
-  voice_avatar?: string
-  emotion_detection?: boolean
-  hipaa_protection?: boolean
-  faqs?: any[]
-  rebuttals?: any[]
 }
 
-export const DEFAULT_SETTINGS: AgentSettings = {
+export const DEFAULT_SETTINGS: AutomationSettings = {
   automation_enabled: false,
   max_calls_batch: 10,
   retry_interval: 15,
-  max_attempts: 3,
-  gender: 'male',
-  position: 'Sales Representative',
-  languages: ['English'],
-  emotion_detection: false,
-  hipaa_protection: false,
-  faqs: [],
-  rebuttals: []
+  max_attempts: 3
 }
 
 class SettingsService {
@@ -41,66 +22,53 @@ class SettingsService {
     this.supabase = supabaseClient
   }
 
-  async getAgentSettings(): Promise<AgentSettings> {
-    try {
-      const { data, error } = await this.supabase
-        .from('agent_settings')
-        .select('*')
-        .eq('user_id', (await this.supabase.auth.getUser())?.data?.user?.id)
-        .single()
+  async getAutomationSettings(): Promise<AutomationSettings> {
+    const { data, error } = await this.supabase
+      .from('settings')
+      .select('automation_enabled, max_calls_batch, retry_interval, max_attempts')
+      .single()
 
-      if (error) {
-        // For any errors, return defaults to prevent blocking the UI
-        console.log('Using default settings due to error:', error.message)
-        return DEFAULT_SETTINGS
+    if (error) {
+      // If no settings exist, try to create default settings
+      if (error.code === 'PGRST116') { // PostgreSQL "no rows returned" error
+        const { data: newData, error: insertError } = await this.supabase
+          .from('settings')
+          .insert([DEFAULT_SETTINGS])
+          .select()
+          .single()
+
+        if (insertError) {
+          // If we can't create settings (e.g., due to permissions), just use defaults in memory
+          // This ensures the app still works even if we can't persist settings
+          console.log('Using in-memory default settings')
+          return DEFAULT_SETTINGS
+        }
+
+        return newData || DEFAULT_SETTINGS
       }
 
-      // Return data with fallback to defaults for any missing fields
-      return {
-        automation_enabled: data?.automation_enabled ?? DEFAULT_SETTINGS.automation_enabled,
-        max_calls_batch: data?.max_calls_batch ?? DEFAULT_SETTINGS.max_calls_batch,
-        retry_interval: data?.retry_interval ?? DEFAULT_SETTINGS.retry_interval,
-        max_attempts: data?.max_attempts ?? DEFAULT_SETTINGS.max_attempts,
-        agent_name: data?.agent_name,
-        gender: data?.gender ?? DEFAULT_SETTINGS.gender,
-        position: data?.position ?? DEFAULT_SETTINGS.position,
-        first_message: data?.first_message,
-        last_message: data?.last_message,
-        languages: data?.languages ?? DEFAULT_SETTINGS.languages,
-        voice: data?.voice,
-        voice_avatar: data?.voice_avatar,
-        emotion_detection: data?.emotion_detection ?? DEFAULT_SETTINGS.emotion_detection,
-        hipaa_protection: data?.hipaa_protection ?? DEFAULT_SETTINGS.hipaa_protection,
-        faqs: data?.faqs ?? DEFAULT_SETTINGS.faqs,
-        rebuttals: data?.rebuttals ?? DEFAULT_SETTINGS.rebuttals
-      }
-    } catch (err) {
-      // Catch any other errors and return defaults
-      console.log('Error fetching settings, using defaults:', err)
+      // For any other errors, log them but continue with defaults
+      console.log('Using default settings due to error:', error.message)
       return DEFAULT_SETTINGS
+    }
+
+    // Return data with fallback to defaults for any missing fields
+    return {
+      automation_enabled: data.automation_enabled ?? DEFAULT_SETTINGS.automation_enabled,
+      max_calls_batch: data.max_calls_batch ?? DEFAULT_SETTINGS.max_calls_batch,
+      retry_interval: data.retry_interval ?? DEFAULT_SETTINGS.retry_interval,
+      max_attempts: data.max_attempts ?? DEFAULT_SETTINGS.max_attempts
     }
   }
 
   async updateAutomationEnabled(enabled: boolean): Promise<{ success: boolean; error?: string }> {
     try {
-      const user = await this.supabase.auth.getUser()
-      const userId = user.data.user?.id
-
-      if (!userId) {
-        return { success: false, error: 'User not authenticated' }
-      }
-
       const { error } = await this.supabase
-        .from('agent_settings')
-        .upsert({ 
-          automation_enabled: enabled,
-          user_id: userId
-        })
+        .from('settings')
+        .update({ automation_enabled: enabled })
+        .not('id', 'is', null) // Update all rows (should only be one)
 
-      if (error) {
-        console.log('Error updating automation enabled:', error.message)
-        return { success: false, error: error.message }
-      }
+      if (error) throw error
 
       return { success: true }
     } catch (error: unknown) {
@@ -118,26 +86,14 @@ class SettingsService {
     }
   }
 
-  async updateAllSettings(settings: AgentSettings): Promise<{ success: boolean; error?: string }> {
+  async updateAllSettings(settings: AutomationSettings): Promise<{ success: boolean; error?: string }> {
     try {
-      const user = await this.supabase.auth.getUser()
-      const userId = user.data.user?.id
-
-      if (!userId) {
-        return { success: false, error: 'User not authenticated' }
-      }
-
       const { error } = await this.supabase
-        .from('agent_settings')
-        .upsert({
-          ...settings,
-          user_id: userId
-        })
+        .from('settings')
+        .update(settings)
+        .not('id', 'is', null) // Update all rows (should only be one)
 
-      if (error) {
-        console.log('Error updating all settings:', error.message)
-        return { success: false, error: error.message }
-      }
+      if (error) throw error
 
       return { success: true }
     } catch (error: unknown) {

@@ -1,133 +1,85 @@
-"use client"
-
-import React, { useEffect, useState, Suspense } from "react";
+import { Suspense } from "react";
+import { createRouteHandlerClient } from "@/lib/supabase/server";
+import { SettingsService } from "@/lib/services/settings";
+import { LeadsService } from "@/lib/services/leads";
+import { ClientAutomationControl } from "@/components/client-automation-control";
+import { ClientLeadTable } from "@/components/client-lead-table";
+import { ClientHeader } from "@/components/client-header";
 import { Skeleton } from "@/components/ui/skeleton";
-import AnalyticsDashboard from "@/components/analytics/AnalyticsDashboard";
-import { leadsService } from "@/lib/services/leads";
-import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase/client";
 
-type CallStatus = "pending" | "calling" | "no_answer" | "scheduled" | "not_interested" | "error";
-
-interface Stats {
-  totalCalls: number;
-  totalMinutes: number;
-  totalCredits: number;
-  endOfCallReasons: Record<CallStatus, number>;
+// Loading skeletons for each component
+function HeaderSkeleton() {
+  return (
+    <div className="flex justify-between items-center">
+      <Skeleton className="h-9 w-48" /> {/* For "Lead Management" text */}
+      <Skeleton className="h-9 w-24" /> {/* For "Sign Out" button */}
+    </div>
+  );
 }
 
-interface Appointment {
-  id: string;
-  company_name: string;
-  contact_name: string;
-  phone: string;
-  email: string;
-  status: CallStatus;
-  call_attempts: number;
-  updated_at: string;
-}
-
-interface Data {
-  stats: Stats;
-  appointments: Appointment[];
-}
-
-const fetchLeads = async () => {
-  const leadsResult = await leadsService.getLeads();
-  if (!leadsResult || leadsResult.error) {
-    throw new Error(leadsResult?.error?.message || "Failed to fetch leads");
-  }
-  return leadsResult.data || [];
-};
-
-export default function DashboardPage() {
-  const router = useRouter();
-  const [data, setData] = useState<Data | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT') {
-        router.push('/login');
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [router]);
-
-  useEffect(() => {
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        router.push('/login');
-        return;
-      }
-
-      try {
-        const leads = await fetchLeads();
-
-        const totalCalls = leads.length;
-        const totalMinutes = leads.reduce((acc, lead) => acc + lead.call_attempts * 2, 0);
-        const totalCredits = leads.reduce((acc, lead) => acc + lead.call_attempts * 0.5, 0);
-
-        const endOfCallReasons: Record<CallStatus, number> = {
-          pending: 0,
-          calling: 0,
-          no_answer: 0,
-          scheduled: 0,
-          not_interested: 0,
-          error: 0,
-        };
-
-        leads.forEach((lead) => {
-          if (lead.status in endOfCallReasons) {
-            endOfCallReasons[lead.status] += 1;
-          }
-        });
-
-        const appointments = leads.filter((lead) => lead.status === "scheduled");
-
-        setData({
-          stats: {
-            totalCalls,
-            totalMinutes,
-            totalCredits,
-            endOfCallReasons,
-          },
-          appointments,
-        });
-      } catch (error) {
-        setError("Failed to load data.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    checkSession();
-  }, [router]);
-
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-64 w-full" />
+function AutomationControlSkeleton() {
+  return (
+    <div className="flex items-center justify-between rounded-lg border p-4">
+      <div className="space-y-2">
+        <Skeleton className="h-5 w-32" /> {/* For "Outbound Calling" text */}
+        <Skeleton className="h-4 w-64" /> {/* For status text */}
       </div>
-    );
-  }
+      <Skeleton className="h-6 w-11" /> {/* For the switch */}
+    </div>
+  );
+}
 
-  if (error) {
-    return <div className="space-y-6">{error}</div>;
-  }
-
-  if (data) {
-    return (
-      <div className="space-y-6">
-        <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-          <AnalyticsDashboard initialData={data as any} />
-        </Suspense>
+function LeadTableSkeleton() {
+  return (
+    <div className="rounded-md border">
+      <div className="border-b px-4 py-3">
+        <Skeleton className="h-8 w-full" /> {/* Table header */}
       </div>
-    )
+      {[...Array(5)].map((_, i) => (
+        <div key={i} className="px-4 py-3 border-b last:border-0">
+          <Skeleton className="h-12 w-full" /> {/* Table rows */}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+async function PageData() {
+  const supabase = await createRouteHandlerClient();
+  const settingsService = new SettingsService(supabase);
+  const leadsService = new LeadsService(supabase);
+  
+  const [leadsResult, settingsResult] = await Promise.all([
+    leadsService.getLeads(),
+    settingsService.getAutomationSettings(),
+  ]);
+
+  if (leadsResult.error) {
+    throw new Error(leadsResult.error.message);
   }
-};
+
+  return {
+    leads: leadsResult.data || [],
+    settings: settingsResult,
+  };
+}
+
+export default async function DashboardPage() {
+  const { leads, settings } = await PageData();
+  
+  return (
+    <div className="space-y-6">
+      <Suspense fallback={<HeaderSkeleton />}>
+        <ClientHeader />
+      </Suspense>
+
+      <Suspense fallback={<AutomationControlSkeleton />}>
+        <ClientAutomationControl initialSettings={settings} />
+      </Suspense>
+      
+      <Suspense fallback={<LeadTableSkeleton />}>
+        <ClientLeadTable initialLeads={leads} />
+      </Suspense>
+    </div>
+  );
+}

@@ -1,13 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+// TODO: Add types
+import { SupabaseClient } from '@supabase/supabase-js';
 import { supabase as defaultClient } from '@/lib/supabase/client';
 import type { Lead } from '@/lib/supabase/types';
 
-export type LeadStatus = "pending" | "calling" | "no_answer" | "scheduled" | "not_interested" | "error";
+export type LeadStatus = "pending" | "calling" | "no_answer" | "scheduled" | "not_interested";
 
 export class LeadsService {
   private supabase: SupabaseClient;
-  
+
   constructor(supabaseClient: SupabaseClient = defaultClient) {
     this.supabase = supabaseClient;
   }
@@ -19,34 +20,26 @@ export class LeadsService {
       pageSize?: number;
     } = {}
   ): Promise<{ data: Lead[] | null; error: any; count: number }> {
-    const { data, error: authError } = await this.supabase.auth.getSession();
-    const user = data?.session?.user;
-  
-    if (authError || !user) {
-      return {
-        data: null,
-        error: { message: 'User is not authenticated' },
-        count: 0
-      };
-    }
-  
     const { sortBy, page, pageSize } = options;
     
     try {
       let query = this.supabase
         .from('leads')
-        .select('*', { count: 'exact' })
-        .eq('user_id', user.id);
-  
+        .select('*', { count: 'exact' });
+
+      // Only apply sorting if we have a valid column
       if (sortBy?.column) {
         query = query.order(sortBy.column, {
           ascending: sortBy.ascending
         });
       } else {
+        // Default sort by created_at desc if no sort specified
         query = query.order('created_at', { ascending: false });
       }
-  
+
+      // Only apply pagination if both page and pageSize are provided
       if (typeof page === 'number' && typeof pageSize === 'number') {
+        // Convert from 1-based to 0-based page number
         const start = (page - 1) * pageSize;
         query = query.range(start, start + pageSize - 1);
       }
@@ -130,32 +123,14 @@ export class LeadsService {
 
   async createLead(lead: Omit<Lead, 'id' | 'created_at' | 'updated_at'>): Promise<{ data: Lead | null; error?: any }> {
     try {
-      const { data: sessionData, error: authError } = await this.supabase.auth.getSession();
-      const user = sessionData?.session?.user;
-  
-      if (authError || !user) {
-        return {
-          data: null,
-          error: { message: 'User is not authenticated' },
-        };
-      }
-  
       const { data, error } = await this.supabase
         .from('leads')
-        .insert([ 
-          { 
-            ...lead,
-            user_id: user.id,
-            status: 'pending',
-            call_attempts: 0,
-            follow_up_email_sent: false
-          }
-        ])
+        .insert([lead])
         .select()
         .single();
-  
+
       if (error) throw error;
-  
+
       return {
         data
       };
@@ -168,11 +143,31 @@ export class LeadsService {
     }
   }
 
-  async updateLeadStatus(ids: string[], status: LeadStatus): Promise<{ success: boolean; data?: Lead[] | null; error?: any }> {
+  async createLeads(leads: Omit<Lead, 'id' | 'created_at' | 'updated_at'>[]): Promise<{ success: boolean; error?: any }> {
+    try {
+      const { error } = await this.supabase
+        .from('leads')
+        .insert(leads);
+
+      if (error) throw error;
+
+      return {
+        success: true
+      };
+    } catch (error) {
+      console.error('Error creating leads:', error);
+      return {
+        success: false,
+        error
+      };
+    }
+  }
+
+  async updateLeadStatus(ids: string[], status: Lead['status']): Promise<{ success: boolean; data?: Lead[] | null; error?: any }> {
     try {
       const { data, error } = await this.supabase
         .from('leads')
-        .update({ status })
+        .update({ status, updated_at: new Date().toISOString() })
         .in('id', ids)
         .select();
 
@@ -191,7 +186,8 @@ export class LeadsService {
     }
   }
 
-  async updateCallStatus(phoneNumber: string, status: LeadStatus): Promise<{ success: boolean; error?: any }> {
+  // Update call status by phone number
+  async updateCallStatus(phoneNumber: string, status: Lead['status']): Promise<{ success: boolean; error?: any }> {
     try {
       const { error } = await this.supabase
         .from('leads')
@@ -199,7 +195,8 @@ export class LeadsService {
           status,
           last_called_at: new Date().toISOString()
         })
-        .eq('phone', phoneNumber);
+        .eq('phone', phoneNumber)
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
 
@@ -210,12 +207,14 @@ export class LeadsService {
     }
   }
 
+  // Fetch pending leads that need to be called
   async fetchPendingLeads(maxCallsBatch: number, retryInterval: number, maxAttempts: number): Promise<{ 
     success: boolean; 
     leads?: Lead[] | null; 
     error?: any 
   }> {
     try {
+      // First count how many leads are currently being called
       const { count: activeCallsCount, error: countError } = await this.supabase
         .from('leads')
         .select('*', { count: 'exact', head: true })
@@ -223,8 +222,10 @@ export class LeadsService {
 
       if (countError) throw countError;
 
+      // Calculate how many new calls we can make
       const availableSlots = Math.max(0, maxCallsBatch - (activeCallsCount || 0));
 
+      // If no slots available, return empty array
       if (availableSlots === 0) {
         return {
           success: true,
@@ -232,7 +233,7 @@ export class LeadsService {
         };
       }
 
-      const { data: leads, error } = await this.supabase
+      const query = this.supabase
         .from('leads')
         .select('*')
         .eq('status', 'pending')
@@ -240,6 +241,18 @@ export class LeadsService {
         .lt('call_attempts', maxAttempts)
         .order('last_called_at', { ascending: true, nullsFirst: true })
         .limit(availableSlots);
+
+      console.log('Fetching pending leads with conditions:', {
+        status: 'pending',
+        retryIntervalMinutes: retryInterval,
+        maxAttempts,
+        maxCallsBatch,
+        activeCallsCount,
+        availableSlots,
+        retryTime: new Date(Date.now() - retryInterval * 60 * 1000).toISOString()
+      });
+
+      const { data: leads, error } = await query;
 
       if (error) throw error;
 
@@ -256,6 +269,7 @@ export class LeadsService {
     }
   }
 
+  // Update lead with new call attempt
   async updateLeadWithCallAttempt(leadId: string, currentAttempts: number): Promise<{ success: boolean; error?: any }> {
     try {
       const { error } = await this.supabase
@@ -277,4 +291,5 @@ export class LeadsService {
   }
 }
 
+// Export a singleton instance with the default client for client-side use
 export const leadsService = new LeadsService();

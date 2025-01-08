@@ -23,6 +23,9 @@ export function AutomationControl({
   const [isUpdating, setIsUpdating] = useState(false)
   const { toast } = useToast()
 
+  const AI_DIALER_URL = process.env.NEXT_PUBLIC_AI_DIALER_URL
+  const CRON_SECRET = process.env.NEXT_PUBLIC_CRON_SECRET
+
   // Update local state when initialSettings changes
   useEffect(() => {
     if (initialSettings !== null) {
@@ -45,6 +48,7 @@ export function AutomationControl({
     setIsUpdating(true)
     
     try {
+      // Update automation settings first
       const result = await settingsService.updateAutomationEnabled(newState)
       
       if (result.success) {
@@ -52,13 +56,31 @@ export function AutomationControl({
         if (onSettingsUpdate) {
           onSettingsUpdate(newState)
         }
-        toast({
-          title: newState ? "Outbound Calling Enabled" : "Outbound Calling Disabled",
-          description: newState 
-            ? "System is now making calls to leads" 
-            : "Outbound calling has been paused",
-          variant: "success",
+
+        // Trigger CRON call when enabling automation
+        const cronResponse = await fetch(`${AI_DIALER_URL}/api/cron`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${CRON_SECRET}`,
+            'Content-Type': 'application/json',
+          },
         })
+
+        if (cronResponse.ok) {
+          toast({
+            title: newState ? "Outbound Calling Enabled" : "Outbound Calling Disabled",
+            description: newState 
+              ? "System is now making calls to leads and cron job triggered." 
+              : "Outbound calling has been paused",
+            variant: "success",
+          })
+        } else {
+          toast({
+            title: "CRON Trigger Failed",
+            description: "Automation enabled but failed to trigger cron job.",
+            variant: "warning",
+          })
+        }
       } else {
         toast({
           title: "Error",
@@ -66,7 +88,7 @@ export function AutomationControl({
           variant: "destructive",
         })
       }
-    } catch {
+    } catch (error) {
       toast({
         title: "Error",
         description: "Failed to update settings. Please try again.",
